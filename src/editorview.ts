@@ -408,6 +408,12 @@ export class EditorView {
   measure(flush = true) {
     if (this.destroyed) return
     if (this.measureScheduled > -1) this.win.cancelAnimationFrame(this.measureScheduled)
+    // On iOS, defer measure during momentum scroll to prevent DOM mutations
+    // from canceling scroll momentum
+    if (this.observer.iosMomentumScroll) {
+      this.measureScheduled = -1
+      return
+    }
     if (this.observer.delayedAndroidKey) {
       this.measureScheduled = -1
       this.requestMeasure()

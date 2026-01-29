@@ -61,6 +61,8 @@ export class DOMObserver {
 
   // iOS momentum scroll: timeout for deferred measure
   iosDeferredMeasure = -1
+  // True when iOS momentum scroll is active (touch ended but still scrolling)
+  iosMomentumScroll = false
 
   constructor(private view: EditorView) {
     this.dom = view.contentDOM
@@ -144,30 +146,35 @@ export class DOMObserver {
 
   onScrollChanged(e: Event) {
     this.view.inputState.runHandlers("scroll", e)
-    if (this.intersecting) {
-      // On iOS, defer measure during momentum scroll (touch ended but still scrolling)
-      // to prevent DOM mutations from canceling scroll momentum
-      if (browser.ios && !this.view.inputState.isTouching) {
-        if (this.iosDeferredMeasure < 0) {
-          this.iosDeferredMeasure = this.win.setTimeout(() => {
-            this.iosDeferredMeasure = -1
-            this.view.measure()
-          }, 150)
-        }
-      } else {
-        this.view.measure()
-      }
-    }
+    if (this.intersecting) this.view.measure()
   }
 
   onScroll(e: Event) {
     if (this.intersecting) this.flush(false)
     if (this.editContext) this.view.requestMeasure(this.editContext.measureReq)
-    // On iOS, if user started touching again, cancel deferred measure and measure immediately
-    if (browser.ios && this.view.inputState.isTouching && this.iosDeferredMeasure >= 0) {
-      this.win.clearTimeout(this.iosDeferredMeasure)
-      this.iosDeferredMeasure = -1
+
+    // On iOS, track momentum scroll state (touch ended but still scrolling)
+    if (browser.ios) {
+      if (!this.view.inputState.isTouching) {
+        // Not touching but scrolling = momentum scroll
+        this.iosMomentumScroll = true
+        // Schedule end of momentum scroll detection
+        if (this.iosDeferredMeasure >= 0) this.win.clearTimeout(this.iosDeferredMeasure)
+        this.iosDeferredMeasure = this.win.setTimeout(() => {
+          this.iosDeferredMeasure = -1
+          this.iosMomentumScroll = false
+          this.view.measure()
+        }, 150)
+      } else {
+        // User is touching - not momentum scroll
+        this.iosMomentumScroll = false
+        if (this.iosDeferredMeasure >= 0) {
+          this.win.clearTimeout(this.iosDeferredMeasure)
+          this.iosDeferredMeasure = -1
+        }
+      }
     }
+
     this.onScrollChanged(e)
   }
 

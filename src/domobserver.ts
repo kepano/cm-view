@@ -59,6 +59,9 @@ export class DOMObserver {
   // Timeout for scheduling check of the parents that need scroll handlers
   parentCheck = -1
 
+  // iOS momentum scroll: timeout for deferred measure
+  iosDeferredMeasure = -1
+
   constructor(private view: EditorView) {
     this.dom = view.contentDOM
     this.observer = new MutationObserver(mutations => {
@@ -141,12 +144,30 @@ export class DOMObserver {
 
   onScrollChanged(e: Event) {
     this.view.inputState.runHandlers("scroll", e)
-    if (this.intersecting) this.view.measure()
+    if (this.intersecting) {
+      // On iOS, defer measure during momentum scroll (touch ended but still scrolling)
+      // to prevent DOM mutations from canceling scroll momentum
+      if (browser.ios && !this.view.inputState.isTouching) {
+        if (this.iosDeferredMeasure < 0) {
+          this.iosDeferredMeasure = this.win.setTimeout(() => {
+            this.iosDeferredMeasure = -1
+            this.view.measure()
+          }, 150)
+        }
+      } else {
+        this.view.measure()
+      }
+    }
   }
 
   onScroll(e: Event) {
     if (this.intersecting) this.flush(false)
     if (this.editContext) this.view.requestMeasure(this.editContext.measureReq)
+    // On iOS, if user started touching again, cancel deferred measure and measure immediately
+    if (browser.ios && this.view.inputState.isTouching && this.iosDeferredMeasure >= 0) {
+      this.win.clearTimeout(this.iosDeferredMeasure)
+      this.iosDeferredMeasure = -1
+    }
     this.onScrollChanged(e)
   }
 
@@ -472,6 +493,7 @@ export class DOMObserver {
     this.removeWindowListeners(this.win)
     clearTimeout(this.parentCheck)
     clearTimeout(this.resizeTimeout)
+    clearTimeout(this.iosDeferredMeasure)
     this.win.cancelAnimationFrame(this.delayedFlush)
     this.win.cancelAnimationFrame(this.flushingAndroidKey)
     if (this.editContext) {

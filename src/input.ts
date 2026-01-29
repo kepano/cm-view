@@ -15,6 +15,8 @@ export class InputState {
   lastKeyTime: number = 0
   lastTouchTime = 0
   lastFocusTime = 0
+  // Track if user is currently touching the screen (for iOS momentum scroll detection)
+  isTouching = false
   lastScrollTop = 0
   lastScrollLeft = 0
 
@@ -503,7 +505,16 @@ handlers.keydown = (view, event: KeyboardEvent) => {
 
 observers.touchstart = (view, e) => {
   view.inputState.lastTouchTime = Date.now()
+  view.inputState.isTouching = true
   view.inputState.setSelectionOrigin("select.pointer")
+}
+
+observers.touchend = (view) => {
+  view.inputState.isTouching = false
+}
+
+observers.touchcancel = (view) => {
+  view.inputState.isTouching = false
 }
 
 observers.touchmove = view => {

@@ -408,11 +408,15 @@ export class EditorView {
   measure(flush = true) {
     if (this.destroyed) return
     if (this.measureScheduled > -1) this.win.cancelAnimationFrame(this.measureScheduled)
-    // On iOS, defer measure during momentum scroll to prevent DOM mutations
-    // from canceling scroll momentum
+    // On iOS, throttle measure during momentum scroll to reduce DOM mutations
+    // while still keeping content visible
     if (this.observer.iosMomentumScroll) {
-      this.measureScheduled = -1
-      return
+      let now = Date.now()
+      if (this.observer.lastMeasureTime && now - this.observer.lastMeasureTime < 100) {
+        this.measureScheduled = -1
+        return
+      }
+      this.observer.lastMeasureTime = now
     }
     if (this.observer.delayedAndroidKey) {
       this.measureScheduled = -1

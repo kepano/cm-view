@@ -63,6 +63,8 @@ export class DOMObserver {
   iosDeferredMeasure = -1
   // True when iOS momentum scroll is active (touch ended but still scrolling)
   iosMomentumScroll = false
+  // Last time measure() was allowed to run during momentum scroll (for throttling)
+  lastMeasureTime = 0
 
   constructor(private view: EditorView) {
     this.dom = view.contentDOM
